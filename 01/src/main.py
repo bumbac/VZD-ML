@@ -154,6 +154,7 @@ def split_meetings(meetings):
             except:
                 break
             vote_links = links_from_vote(vote_links, response)
+            print(vote_links)
         meetings_vote_links.append(vote_links)
     all_votings_results['Výsledek'] = all_votings_results['Výsledek'].map({'Přijato': 1, "Zamítnuto": 0})
     return all_votings_results, meetings_vote_links
