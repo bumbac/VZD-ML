@@ -26,7 +26,8 @@ class CProposal:
                 party_name = str(party.previous_sibling.contents[0].next)[:-2]
                 for member in party:
                     row = pd.Series(data={'Name': member.contents[2].string, "Party": party_name,
-                                          "Vote": member.contents[0].string, 'Mtg n.': meeting_n, 'Proposal n.':voting_n})
+                                          "Vote": member.contents[0].string, 'Mtg n.': meeting_n,
+                                          'Proposal n.': voting_n})
                     self.df = self.df.append(row, ignore_index=True)
 
     def load(self, filename):
@@ -39,6 +40,7 @@ class CProposal:
     def save(self):
         members_file = '../data/' + str(self.meeting_n) + '_' + str(self.voting_n) + '.csv'
         self.df.to_csv(members_file, index=False)
+
 
 def main():
     save_data()
@@ -59,7 +61,6 @@ def merge(meetings):
 
 
 def transfers(df):
-
     pass
 
 
@@ -150,7 +151,7 @@ def split_meetings(meetings):
             response = requests.get(page_url)
             try:
                 all_votings_results = all_votings_results.append(pd.read_html(response.text)[0])
-            except Exception:
+            except:
                 break
             vote_links = links_from_vote(vote_links, response)
         meetings_vote_links.append(vote_links)
