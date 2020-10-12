@@ -14,74 +14,80 @@ URL_PREFIX = 'https://www.psp.cz/sqw/'
 
 
 class CProposal:
-    def __init__(self, meeting_n=None, voting_n=None, url=None):
+    def __init__(self, meeting_n=None, voting_n=None, url=None, response=None):
         if meeting_n is not None:
             self.meeting_n = meeting_n
             self.voting_n = voting_n
-            response = requests.get(url)
             soup = BeautifulSoup(response.text, 'html.parser')
             results_tag = soup.find_all('ul', class_='results')
-            self.df = pd.DataFrame(columns=['Name', 'Party', 'Vote', 'Mtg n.', 'Proposal n.'])
+            try:
+                self.overall_df = pd.read_html(response.text)[1]
+            except:
+                self.overall_df = pd.DataFrame(columns=["Party", 'N. repr.', 'A', 'N', '0', 'Z', 'M'])
+            self.overall_df.columns = ["Party", 'N. repr.', 'A', 'N', '0', 'Z', 'M']
+            self.overall_df = self.overall_df.assign(Meeting=self.meeting_n)
+            self.overall_df = self.overall_df.assign(Proposal=self.voting_n)
+            self.df = pd.DataFrame(columns=['Name', 'Party', 'Vote', 'Meeting', 'Proposal'])
             for party in results_tag:
                 party_name = str(party.previous_sibling.contents[0].next)[:-2]
                 for member in party:
                     row = pd.Series(data={'Name': member.contents[2].string, "Party": party_name,
-                                          "Vote": member.contents[0].string, 'Mtg n.': meeting_n,
-                                          'Proposal n.': voting_n})
+                                          "Vote": member.contents[0].string, 'Meeting': meeting_n,
+                                          'Proposal': voting_n})
                     self.df = self.df.append(row, ignore_index=True)
 
     def load(self, filename):
-        dash_pos = str(filename).find('_')
+        uscore_pos = str(filename).find('_')
+        dash_pos = str(filename).find('-')
         dot_pos = str(filename).find('.')
-        self.meeting_n = int(str(filename)[:dash_pos])
-        self.voting_n = int(str(filename)[dash_pos + 1:dot_pos])
-        self.df = pd.read_csv('../data/' + filename)
+        pos = 0
+        if dash_pos < 0:
+            pos = uscore_pos
+        else:
+            pos = dash_pos
+        self.meeting_n = int(str(filename)[:pos])
+        self.voting_n = int(str(filename)[pos + 1:dot_pos])
+        uscorefile = str(self.meeting_n) + '_' + str(self.voting_n) + '.csv'
+        dashfile = str(self.meeting_n) + '-' + str(self.voting_n) + '.csv'
+        ban = ''
+        if dash_pos < 0:
+            ban = dashfile
+        else:
+            ban = uscorefile
+        self.df = pd.read_csv('../data/' + uscorefile)
+        self.overall_df = pd.read_csv('../data/' + dashfile)
+        return ban
 
     def save(self):
+        print('Saving: m: ' + str(self.meeting_n) + ' p: ' + str(self.voting_n))
         members_file = '../data/' + str(self.meeting_n) + '_' + str(self.voting_n) + '.csv'
+        party_file = '../data/' + str(self.meeting_n) + '-' + str(self.voting_n) + '.csv'
         self.df.to_csv(members_file, index=False)
+        self.overall_df.to_csv(party_file, index=False)
 
 
 def main():
     save_data()
-    # meetings = load_data()
-    # df = merge(meetings)
-    # attendance(df)
-    # transfers(df)
-    # party_match(df)
-    # party_unity(df)
+    meetings = load_data()
+    df, df_overall = merge(meetings)
 
 
 def merge(meetings):
-    df = pd.DataFrame(columns={'Name', 'Party', 'Vote', 'Mtg n.', 'Proposal n.'})
+    df = pd.DataFrame(columns={'Name', 'Party', 'Vote', 'Meeting', 'Proposal'})
+    df_overall = pd.DataFrame(columns={"Party", 'N. repr.', 'A', 'N', '0', 'Z', 'M'})
     for meeting in meetings:
         for proposal in meeting:
             df = df.append(proposal.df)
-    return df
-
-
-def transfers(df):
-    pass
-
-
-def attendance(df):
-    ax = sns.countplot(x='Name', data=df)
-    pass
-
-
-def party_match(meetings):
-    pass
-
-
-def party_unity(meetings):
-    pass
+    return df, df_overall
 
 
 def load_data():
-    meetings = [[]] * 61
+    meetings = [[] for i in range(62)]
     directory = '../data'
     ban = []
     for file in os.scandir(directory):
+        if file.name in ban:
+            continue
         proposal = CProposal()
         ban.append(proposal.load(file.name))
         meetings[proposal.meeting_n].append(proposal)
@@ -94,12 +100,21 @@ def save_data():
     results_meetings, vote_links = split_meetings(meetings)
     meeting_n = 0
     results_meetings.to_csv('results', index=False)
+    unsuccessful_urls = open('../url.txt', 'a')
     for meeting in vote_links:
         meeting_n += 1
+        if meeting_n < 59:
+            continue
         for voting_number in meeting:
             url = URL_PREFIX + meeting[voting_number]
             print(url)
-            proposal = CProposal(meeting_n, voting_number, url)
+            try:
+                response = requests.get(url)
+            except:
+                unsuccessful_urls.write("\n")
+                unsuccessful_urls.write(url)
+                continue
+            proposal = CProposal(meeting_n, voting_number, url, response)
             proposal.save()
 
 
@@ -108,7 +123,7 @@ def fetch_meetings():
     session.headers.update({
         'User-Agent': 'Mozilla/5.0'
     })
-    retries = Retry(total=5,
+    retries = Retry(total=10,
                     backoff_factor=1,
                     status_forcelist=[429, 500, 502, 503, 504])
     session.mount('http://', HTTPAdapter(max_retries=retries))
