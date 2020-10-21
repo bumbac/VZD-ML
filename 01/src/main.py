@@ -60,51 +60,22 @@ class CProposal:
 
     def save(self):
         print('Saving: m: ' + str(self.meeting_n) + ' p: ' + str(self.voting_n))
-        members_file = '../data/' + str(self.meeting_n) + '_' + str(self.voting_n) + '.csv'
-        party_file = '../data/' + str(self.meeting_n) + '-' + str(self.voting_n) + '.csv'
+        members_file = '../data2/' + str(self.meeting_n) + '_' + str(self.voting_n) + '.csv'
+        party_file = '../data2/' + str(self.meeting_n) + '-' + str(self.voting_n) + '.csv'
         self.df.to_csv(members_file, index=False)
         self.overall_df.to_csv(party_file, index=False)
 
 
 def main():
-    save_data()
-    meetings = load_data()
-    df, df_overall = merge(meetings)
-
-
-def merge(meetings):
-    df = pd.DataFrame(columns={'Name', 'Party', 'Vote', 'Meeting', 'Proposal'})
-    df_overall = pd.DataFrame(columns={"Party", 'N. repr.', 'A', 'N', '0', 'Z', 'M'})
-    for meeting in meetings:
-        for proposal in meeting:
-            df = df.append(proposal.df)
-    return df, df_overall
-
-
-def load_data():
-    meetings = [[] for i in range(62)]
-    directory = '../data'
-    ban = []
-    for file in os.scandir(directory):
-        if file.name in ban:
-            continue
-        proposal = CProposal()
-        ban.append(proposal.load(file.name))
-        meetings[proposal.meeting_n].append(proposal)
-
-    return meetings
-
-
-def save_data():
     meetings = fetch_meetings()
     results_meetings, vote_links = split_meetings(meetings)
     meeting_n = 0
-    results_meetings.to_csv('results', index=False)
+    results_meetings.to_csv('results.csv', index=False)
     unsuccessful_urls = open('../url.txt', 'a')
     for meeting in vote_links:
         meeting_n += 1
-        if meeting_n < 59:
-            continue
+        if meeting_n == 21:
+            meeting_n += 1
         for voting_number in meeting:
             url = URL_PREFIX + meeting[voting_number]
             print(url)
@@ -169,9 +140,7 @@ def split_meetings(meetings):
             except:
                 break
             vote_links = links_from_vote(vote_links, response)
-            print(vote_links)
         meetings_vote_links.append(vote_links)
-    all_votings_results['Výsledek'] = all_votings_results['Výsledek'].map({'Přijato': 1, "Zamítnuto": 0})
     return all_votings_results, meetings_vote_links
 
 
